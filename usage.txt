@@ -1,0 +1,42 @@
+uv run main.py -n 10000           # full run (~30s)
+uv run main.py -n 500             # quick test
+uv run main.py -n 500 --output json   # JSON output
+
+
+# Display in a window
+uv run main.py -n 1000 --output json | uv run visualize.py
+
+# Save to file
+uv run main.py -n 1000 --output json | uv run visualize.py --save chart.png
+
+# Narrow to top 20 teams only
+uv run main.py -n 1000 --output json | uv run visualize.py --top 20
+
+
+uv run main.py --trace Switzerland
+
+uv run pairings.py
+
+
+# Basic usage — opens chart in a window
+uv run matchup.py Germany France
+
+# More simulations for smoother distribution
+uv run matchup.py Germany France -n 50000
+
+# Save to file
+uv run matchup.py Spain Argentina --save matchup.png
+
+# Teams with spaces or apostrophes
+uv run matchup.py "Cote d'Ivoire" Ecuador -n 5000
+
+# Custom data files
+uv run matchup.py USA Mexico --scores data/scores.csv --ratings data/ratings.csv
+
+
+uv run update_scores.py
+# or preview first:
+uv run update_scores.py --dry-run
+
+#today's predictions
+uv run matchup.py --today

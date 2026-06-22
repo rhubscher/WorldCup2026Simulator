@@ -1,0 +1,1 @@
+for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do uv run .\main.py -n 10000 > output\%%i_results.txt

@@ -1,0 +1,22 @@
+Yes, they matter for group-phase rows — and here's the exact rule from the code:
+
+simulation.py:37 only picks up a row as a completed match if phase == "group" and group is a valid letter (A–L). If either is wrong, the match gets treated as unplayed and re-simulated.
+
+For knockout rows (r32, r16, qf, sf, final) — the file loads them without error, but the simulation currently ignores them. It only uses group-phase results to build standings, then simulates the entire knockout bracket fresh. So those rows have no effect for now.
+
+For group-phase rows, here's the reference:
+
+group	Teams
+A	Mexico, South Africa, Korea Republic, Czechia
+B	Canada, Bosnia and Herzegovina, Qatar, Switzerland
+C	Brazil, Morocco, Haiti, Scotland
+D	USA, Paraguay, Australia, Türkiye
+E	Germany, Curaçao, Côte d'Ivoire, Ecuador
+F	Netherlands, Japan, Sweden, Tunisia
+G	Belgium, Egypt, IR Iran, New Zealand
+H	Spain, Cabo Verde, Saudi Arabia, Uruguay
+I	France, Senegal, Iraq, Norway
+J	Argentina, Algeria, Austria, Jordan
+K	Portugal, DR Congo, Uzbekistan, Colombia
+L	England, Croatia, Ghana, Panama
+The phase column must be exactly group. The group column must be the single letter matching where those two teams play — you can look it up from the table above. Team names must match exactly (including accents like Türkiye, Côte d'Ivoire, Curaçao).

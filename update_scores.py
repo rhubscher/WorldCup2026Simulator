@@ -42,6 +42,7 @@ FIELDNAMES = [
     "aet",
     "penalties_a",
     "penalties_b",
+    "date",
 ]
 
 
@@ -153,7 +154,7 @@ def fetch_day(match_date: date) -> list[dict]:
     return results
 
 
-def main(scores_path: Path, dry_run: bool = False) -> None:
+def main(scores_path: Path, dry_run: bool = False, days: int = 1) -> None:
     with scores_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
@@ -162,7 +163,17 @@ def main(scores_path: Path, dry_run: bool = False) -> None:
     }
 
     today = date.today()
-    current = max(TOURNAMENT_START, today - timedelta(days=2))
+
+    undated = any(
+        r.get("goals_a", "").strip() and not r.get("date", "").strip()
+        for r in rows
+    )
+    if undated:
+        current = TOURNAMENT_START
+        print("Backfilling dates for existing scores from tournament start...")
+    else:
+        current = max(TOURNAMENT_START, today - timedelta(days=days - 1))
+
     total_updated = 0
 
     while current <= today:
@@ -181,8 +192,11 @@ def main(scores_path: Path, dry_run: bool = False) -> None:
             idx = pair_to_idx[pair]
             row = rows[idx]
 
-            if row.get("goals_a", "").strip():
-                continue  # already recorded
+            has_score = bool(row.get("goals_a", "").strip())
+            has_date = bool(row.get("date", "").strip())
+
+            if has_score and has_date:
+                continue  # fully recorded
 
             # Orient score to match team_a / team_b order in the CSV
             if row["team_a"] == m["team0"]:
@@ -192,17 +206,22 @@ def main(scores_path: Path, dry_run: bool = False) -> None:
                 goals_a, goals_b = m["goals1"], m["goals0"]
                 pen_a, pen_b = m["pen1"], m["pen0"]
 
-            suffix = " (AET)" if m["aet"] else ""
-            if pen_a is not None:
-                suffix += f" pen {pen_a}-{pen_b}"
-            print(f"  {row['team_a']} {goals_a}-{goals_b} {row['team_b']}{suffix}")
+            if not has_score:
+                suffix = " (AET)" if m["aet"] else ""
+                if pen_a is not None:
+                    suffix += f" pen {pen_a}-{pen_b}"
+                print(f"  {row['team_a']} {goals_a}-{goals_b} {row['team_b']}{suffix}")
+            else:
+                print(f"  {row['team_a']} vs {row['team_b']} — date backfilled")
 
             if not dry_run:
-                row["goals_a"] = str(goals_a)
-                row["goals_b"] = str(goals_b)
-                row["aet"] = "true" if m["aet"] else ""
-                row["penalties_a"] = str(pen_a) if pen_a is not None else ""
-                row["penalties_b"] = str(pen_b) if pen_b is not None else ""
+                if not has_score:
+                    row["goals_a"] = str(goals_a)
+                    row["goals_b"] = str(goals_b)
+                    row["aet"] = "true" if m["aet"] else ""
+                    row["penalties_a"] = str(pen_a) if pen_a is not None else ""
+                    row["penalties_b"] = str(pen_b) if pen_b is not None else ""
+                row["date"] = current.isoformat()
 
             total_updated += 1
 
@@ -230,7 +249,7 @@ def main(scores_path: Path, dry_run: bool = False) -> None:
         return
 
     with scores_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
+        writer = csv.DictWriter(f, fieldnames=FIELDNAMES, restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -243,5 +262,12 @@ if __name__ == "__main__":
     p.add_argument(
         "--dry-run", action="store_true", help="Preview changes without writing"
     )
+    p.add_argument(
+        "--days",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Number of days to scan back from today (default: 1 = today only)",
+    )
     args = p.parse_args()
-    main(Path(args.scores), dry_run=args.dry_run)
+    main(Path(args.scores), dry_run=args.dry_run, days=args.days)

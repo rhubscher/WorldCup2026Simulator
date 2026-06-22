@@ -74,21 +74,45 @@ def _h2h_gf_among(teams: list[str], results: list[MatchResult]) -> dict[str, int
     return gf
 
 
-def _sort_key_with_h2h(
+def _sort_with_tiebreakers(
     tied_teams: list[str], all_stats: dict[str, TeamStats], results: list[MatchResult]
 ) -> list[str]:
-    """Sort tied teams using head-to-head then random. Returns sorted list (best first)."""
+    """Apply FIFA tiebreakers recursively. Returns sorted list (best first).
+
+    Order: H2H pts → H2H GD → H2H GF → overall GD → overall GF → random.
+    When a subgroup is still tied, H2H is recomputed for just that subgroup.
+    """
     if len(tied_teams) == 1:
         return tied_teams
 
     h2h_pts = _h2h_points_among(tied_teams, results)
-    h2h_gd = _h2h_gd_among(tied_teams, results)
-    h2h_gf = _h2h_gf_among(tied_teams, results)
+    h2h_gd  = _h2h_gd_among(tied_teams, results)
+    h2h_gf  = _h2h_gf_among(tied_teams, results)
 
-    def key(t: str):
-        return (h2h_pts[t], h2h_gd[t], h2h_gf[t], random.random())
+    def key(t: str) -> tuple:
+        s = all_stats[t]
+        return (h2h_pts[t], h2h_gd[t], h2h_gf[t], s.gd, s.gf)
 
-    return sorted(tied_teams, key=key, reverse=True)
+    sorted_teams = sorted(tied_teams, key=key, reverse=True)
+
+    result: list[str] = []
+    i = 0
+    while i < len(sorted_teams):
+        j = i + 1
+        while j < len(sorted_teams) and key(sorted_teams[j]) == key(sorted_teams[i]):
+            j += 1
+        sub = sorted_teams[i:j]
+        if len(sub) > 1:
+            if len(sub) < len(tied_teams):
+                # Smaller subgroup: recompute H2H among just these teams (FIFA rule)
+                sub = _sort_with_tiebreakers(sub, all_stats, results)
+            else:
+                # All teams equal on every criterion: random draw
+                random.shuffle(sub)
+        result.extend(sub)
+        i = j
+
+    return result
 
 
 def rank_group(group_results: list[MatchResult], teams: list[str]) -> list[TeamStats]:
@@ -112,23 +136,18 @@ def rank_group(group_results: list[MatchResult], teams: list[str]) -> list[TeamS
         else:
             sb.points += 3
 
-    # Sort by points, then GD, then GF; break ties with head-to-head then random
-    def overall_key(t: str) -> tuple:
-        s = stats[t]
-        return (s.points, s.gd, s.gf)
+    # Primary sort: points only. All other criteria applied in _sort_with_tiebreakers.
+    sorted_teams = sorted(teams, key=lambda t: stats[t].points, reverse=True)
 
-    sorted_teams = sorted(teams, key=overall_key, reverse=True)
-
-    # Resolve ties between teams with equal overall stats
     result_order: list[str] = []
     i = 0
     while i < len(sorted_teams):
         j = i + 1
-        while j < len(sorted_teams) and overall_key(sorted_teams[j]) == overall_key(sorted_teams[i]):
+        while j < len(sorted_teams) and stats[sorted_teams[j]].points == stats[sorted_teams[i]].points:
             j += 1
         tied = sorted_teams[i:j]
         if len(tied) > 1:
-            tied = _sort_key_with_h2h(tied, stats, group_results)
+            tied = _sort_with_tiebreakers(tied, stats, group_results)
         result_order.extend(tied)
         i = j
 

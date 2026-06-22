@@ -40,41 +40,59 @@ def _stats(results, teams):
     return {t: tuple(v) for t, v in s.items()}
 
 
+def _rank_cluster(cluster: list[str], st: dict, results) -> list[str | None]:
+    """Recursively rank a tied-on-points cluster.
+
+    Tiebreaker order: H2H pts → H2H GD → H2H GF → overall GD → overall GF.
+    H2H is recomputed for each remaining subgroup (FIFA rule).
+    Returns None for positions unresolvable without fair play / FIFA ranking.
+    """
+    h_pts = _h2h_points_among(cluster, results)
+    h_gd  = _h2h_gd_among(cluster, results)
+    h_gf  = _h2h_gf_among(cluster, results)
+
+    def hk(t: str) -> tuple:
+        return (h_pts[t], h_gd[t], h_gf[t], st[t][1], st[t][2])
+
+    by_criteria = sorted(cluster, key=hk, reverse=True)
+    output: list[str | None] = []
+    ii = 0
+    while ii < len(by_criteria):
+        jj = ii + 1
+        while jj < len(by_criteria) and hk(by_criteria[jj]) == hk(by_criteria[ii]):
+            jj += 1
+        sub = by_criteria[ii:jj]
+        if len(sub) == 1:
+            output.extend(sub)
+        elif len(sub) < len(cluster):
+            output.extend(_rank_cluster(sub, st, results))
+        else:
+            output.extend([None] * len(sub))
+        ii = jj
+    return output
+
+
 def _rank_deterministic(results, teams) -> list[str | None]:
     """Rank 4 teams without random tiebreaking.
 
-    Returns a 4-slot list; None at a position means that slot requires a
-    random draw to resolve and is therefore not yet confirmed.
+    Returns a 4-slot list; None at a position means that slot is unresolvable
+    from match data alone (fair play / FIFA ranking required).
     """
     st = _stats(results, teams)
-    by_overall = sorted(teams, key=lambda t: st[t], reverse=True)
+    # Primary sort: points only
+    by_pts = sorted(teams, key=lambda t: st[t][0], reverse=True)
 
     output: list[str | None] = []
     i = 0
-    while i < len(by_overall):
+    while i < len(by_pts):
         j = i + 1
-        while j < len(by_overall) and st[by_overall[j]] == st[by_overall[i]]:
+        while j < len(by_pts) and st[by_pts[j]][0] == st[by_pts[i]][0]:
             j += 1
-        cluster = by_overall[i:j]
+        cluster = by_pts[i:j]
         if len(cluster) == 1:
             output.extend(cluster)
         else:
-            h_pts = _h2h_points_among(cluster, results)
-            h_gd  = _h2h_gd_among(cluster, results)
-            h_gf  = _h2h_gf_among(cluster, results)
-
-            def hk(t: str) -> tuple:
-                return (h_pts[t], h_gd[t], h_gf[t])
-
-            by_h2h = sorted(cluster, key=hk, reverse=True)
-            ii = 0
-            while ii < len(by_h2h):
-                jj = ii + 1
-                while jj < len(by_h2h) and hk(by_h2h[jj]) == hk(by_h2h[ii]):
-                    jj += 1
-                sub = by_h2h[ii:jj]
-                output.extend(sub if len(sub) == 1 else [None] * len(sub))
-                ii = jj
+            output.extend(_rank_cluster(cluster, st, results))
         i = j
 
     return output

@@ -12,19 +12,30 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
+from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib.lines import Line2D
+
 from src.data import load_ratings, load_scores, GROUPS, TEAM_TO_GROUP
-from src.simulation import run_simulations
+from src.ratings import update_ratings
+from src.simulation import run_simulations, SimResults
 
 ROUNDS = ["win", "final", "sf", "qf", "r16", "r32"]
 ALL_TEAMS = [t for teams in GROUPS.values() for t in teams]
 
 
-def _compute_date_probs(results: object, n: int) -> dict[str, dict[str, float]]:
-    """Convert SimResults round_counts to percentage dicts keyed by round."""
-    return {
-        r: {t: results.round_counts[t].get(r, 0) / n * 100 for t in results.round_counts}
-        for r in ROUNDS
-    }
+def _compute_date_probs(results: SimResults, n: int) -> dict[str, dict[str, float]]:
+    """Convert SimResults to percentage dicts keyed by round."""
+    probs: dict[str, dict[str, float]] = {}
+    for r in ROUNDS:
+        if r == "win":
+            # wins are stored in win_counts, not round_counts
+            probs[r] = {t: results.win_counts.get(t, 0) / n * 100 for t in ALL_TEAMS}
+        else:
+            probs[r] = {
+                t: results.round_counts[t].get(r, 0) / n * 100
+                for t in results.round_counts
+            }
+    return probs
 
 
 def _is_active(team: str, probs: dict[str, dict[str, float]]) -> bool:
@@ -52,6 +63,128 @@ def _rank_teams(probs: dict[str, dict[str, float]]) -> dict[str, int]:
     return {t: i + 1 for i, t in enumerate(sorted_teams)}
 
 
+def _snapshot_chart(
+    ratings_initial: dict,
+    ratings_current: dict,
+    probs_initial: dict[str, float],
+    probs_current: dict[str, float],
+    n: int,
+    save: str | None,
+) -> None:
+    """Two-panel slope chart: Y = value scale, X = pre-tournament vs current.
+
+    Flat line   → as expected (gray).
+    Rising line → better than expected (green; darker = more improvement).
+    Falling line → worse than expected (red; darker = larger drop).
+    """
+    # Lines: lighter gradient with alpha to show magnitude visually
+    line_cmap = LinearSegmentedColormap.from_list(
+        "rg", ["#cc2222", "#aaaaaa", "#22aa22"]
+    )
+    # Labels: darker variant so text is always legible on white background
+    label_cmap = LinearSegmentedColormap.from_list(
+        "rg_dark", ["#7a0000", "#303030", "#004a00"]
+    )
+
+    panels = [
+        (
+            {t: ratings_initial[t].rating for t in ALL_TEAMS},
+            {t: ratings_current[t].rating for t in ALL_TEAMS},
+            "Glicko-2 rating",
+        ),
+        (
+            probs_initial,
+            probs_current,
+            "Win probability (%)",
+        ),
+    ]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 16))
+    fig.subplots_adjust(left=0.18, right=0.82, top=0.94, bottom=0.06, wspace=0.55)
+
+    for ax, (initial_vals, current_vals, ylabel), label_side in zip(
+        (ax1, ax2), panels, ("left", "right")
+    ):
+        deltas = {t: current_vals.get(t, 0) - initial_vals.get(t, 0) for t in ALL_TEAMS}
+        max_abs = max((abs(d) for d in deltas.values()), default=1.0) or 1.0
+        norm = Normalize(vmin=-max_abs, vmax=max_abs)
+
+        # Draw flattest lines first so big movers appear on top
+        for team in sorted(ALL_TEAMS, key=lambda t: abs(deltas[t])):
+            y0 = initial_vals.get(team, 0)
+            y1 = current_vals.get(team, 0)
+            delta = deltas[team]
+            magnitude = abs(delta) / max_abs
+            cmap_pos = norm(delta) * 0.85 + 0.075  # keep off pure cmap ends
+            line_color = line_cmap(cmap_pos)
+            label_color = label_cmap(cmap_pos)
+            lw = 0.7 + 1.3 * magnitude
+            alpha = 0.40 + 0.50 * magnitude
+            ax.plot([0, 1], [y0, y1], color=line_color, lw=lw, alpha=alpha)
+
+            label_y = y0 if label_side == "left" else y1
+            label_x = -0.04 if label_side == "left" else 1.04
+            ha = "right" if label_side == "left" else "left"
+            ax.text(
+                label_x,
+                label_y,
+                team,
+                ha=ha,
+                va="center",
+                fontsize=5.5,
+                color=label_color,
+                alpha=0.9,
+                clip_on=False,
+            )
+
+        ax.set_xlim(0, 1)
+        ax.set_xticks([0, 1])
+        ax.set_xticklabels(["Pre-tournament", "Current"], fontsize=8)
+        ax.set_ylabel(ylabel, fontsize=8)
+        ax.tick_params(axis="y", labelsize=7)
+
+        if label_side == "left":
+            # Move axis label to the right so it doesn't overlap the country names on the left
+            ax.yaxis.set_label_position("right")
+            ax.grid(axis="y", alpha=0.2)
+        else:
+            # Draw one horizontal reference line per team at their current position
+            # instead of auto-grid lines at 0, 1, 2 … 10, etc.
+            ax.grid(False)
+            for team in ALL_TEAMS:
+                ax.axhline(
+                    y=current_vals.get(team, 0),
+                    color="#cccccc",
+                    lw=0.4,
+                    alpha=0.55,
+                    zorder=0,
+                )
+
+    fig.legend(
+        handles=[
+            Line2D([0], [0], color="#22aa22", lw=2, label="Better than expected ↑"),
+            Line2D([0], [0], color="#aaaaaa", lw=0.8, label="As expected →"),
+            Line2D([0], [0], color="#cc2222", lw=2, label="Worse than expected ↓"),
+        ],
+        fontsize=7,
+        loc="lower center",
+        ncol=3,
+        bbox_to_anchor=(0.5, 0.01),
+    )
+
+    fig.suptitle(
+        f"FIFA World Cup 2026 — ratings & win odds snapshot  ({n:,} simulations)",
+        fontsize=9,
+        y=0.97,
+    )
+
+    if save:
+        plt.savefig(save, dpi=150, bbox_inches="tight")
+        print(f"Saved to {save}", file=sys.stderr)
+    else:
+        plt.show()
+
+
 def _run_and_cache(
     all_completed: list,
     dates: list[str],
@@ -61,14 +194,18 @@ def _run_and_cache(
     cache_path: Path,
     force: bool,
 ) -> None:
+    meta = cache.setdefault("_meta", {})
     for date in dates:
-        if not force and date in cache:
+        filtered = [m for m in all_completed if m.date and m.date <= date]
+        n_matches = len(filtered)
+        if not force and date in cache and meta.get(date) == n_matches:
             print(f"  {date}: cached")
             continue
-        filtered = [m for m in all_completed if m.date and m.date <= date]
-        print(f"  {date}: simulating ({len(filtered)} results) ...", end=" ", flush=True)
+        label = "stale" if (not force and date in cache) else "simulating"
+        print(f"  {date}: {label} ({n_matches} results) ...", end=" ", flush=True)
         results = run_simulations(ratings, filtered, n)
         cache[date] = _compute_date_probs(results, results.n)
+        meta[date] = n_matches
         print("done")
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
@@ -82,22 +219,97 @@ def main() -> None:
     parser.add_argument("--ratings", default="data/ratings.csv")
     parser.add_argument("-n", "--simulations", type=int, default=2000, metavar="N")
     parser.add_argument("--cache", metavar="FILE", help="Cache file path")
-    parser.add_argument("--save", metavar="FILE", help="Save chart to PNG instead of displaying")
-    parser.add_argument("--teams", metavar="TEAMS", help="Comma-separated list of teams to highlight")
-    parser.add_argument("--no-cache", action="store_true", help="Ignore and overwrite existing cache")
+    parser.add_argument(
+        "--save", metavar="FILE", help="Save chart to PNG instead of displaying"
+    )
+    parser.add_argument(
+        "--teams", metavar="TEAMS", help="Comma-separated list of teams to highlight"
+    )
+    parser.add_argument(
+        "--no-cache", action="store_true", help="Ignore and overwrite existing cache"
+    )
+    parser.add_argument(
+        "--snapshot",
+        action="store_true",
+        help="Two-panel before/after chart: ratings and win probability (no timeline needed)",
+    )
     args = parser.parse_args()
 
     n = args.simulations
-    cache_path = Path(args.cache) if args.cache else Path(f"cache/timeline_{n}.json")
-
     ratings = load_ratings(args.ratings)
     all_completed = load_scores(args.scores)
+
+    if args.snapshot:
+        cache_path = (
+            Path(args.cache) if args.cache else Path(f"cache/timeline_{n}.json")
+        )
+        # Always load the existing cache so timeline data is preserved when --no-cache
+        # regenerates the snapshot entries (--no-cache means "recompute", not "destroy").
+        cache: dict = {}
+        if cache_path.exists():
+            try:
+                cache = json.loads(cache_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+        # Baseline (pre-tournament) — bypass cache when --no-cache or all "win" values
+        # are zero (indicates an old stale entry written before the win_counts fix).
+        baseline_wins = (
+            {} if args.no_cache else cache.get("_baseline", {}).get("win", {})
+        )
+        if any(v > 0 for v in baseline_wins.values()):
+            probs_init = baseline_wins
+            print("  baseline: cached")
+        else:
+            print(f"Running {n:,} simulations (pre-tournament)...", file=sys.stderr)
+            res_init = run_simulations(ratings, [], n)
+            probs_init = {t: res_init.win_counts.get(t, 0) / n * 100 for t in ALL_TEAMS}
+            cache["_baseline"] = _compute_date_probs(res_init, n)
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+
+        # Current — use the latest dated timeline entry when fresh and match count matches.
+        # Bypass when --no-cache or all "win" values are zero (stale entry).
+        completed_dates = sorted({m.date for m in all_completed if m.date})
+        latest = completed_dates[-1] if completed_dates else None
+        meta = cache.get("_meta", {})
+        n_latest = (
+            sum(1 for m in all_completed if m.date and m.date <= latest)
+            if latest
+            else 0
+        )
+        cached_curr_wins = (
+            {}
+            if (args.no_cache or not latest)
+            else cache.get(latest, {}).get("win", {})
+        )
+        if (
+            any(v > 0 for v in cached_curr_wins.values())
+            and meta.get(latest) == n_latest
+        ):
+            probs_curr = cached_curr_wins
+            print(f"  current ({latest}): cached")
+        else:
+            print(f"Running {n:,} simulations (current)...", file=sys.stderr)
+            res_curr = run_simulations(ratings, all_completed, n)
+            probs_curr = {t: res_curr.win_counts.get(t, 0) / n * 100 for t in ALL_TEAMS}
+            if latest:
+                cache[latest] = _compute_date_probs(res_curr, n)
+                cache.setdefault("_meta", {})[latest] = n_latest
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                cache_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+
+        ratings_current = update_ratings(ratings, all_completed)
+        _snapshot_chart(ratings, ratings_current, probs_init, probs_curr, n, args.save)
+        return
+
+    cache_path = Path(args.cache) if args.cache else Path(f"cache/timeline_{n}.json")
 
     dates = sorted({m.date for m in all_completed if m.date})
     if not dates:
         print(
             "No dated results found in scores.csv.\n"
-            "Run: uv run update_scores.py --days 30  to back-fill dates.",
+            "Run: uv run update_scores.py  to back-fill dates.",
             file=sys.stderr,
         )
         sys.exit(1)

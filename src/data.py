@@ -44,6 +44,7 @@ class MatchResult:
     aet: bool
     penalties_a: int | None
     penalties_b: int | None
+    date: str | None = None
 
     def winner(self) -> str:
         if self.penalties_a is not None:
@@ -133,6 +134,7 @@ def load_scores(path: str) -> list[MatchResult]:
                     aet=row.get("aet", "").strip().lower() in ("true", "1", "yes"),
                     penalties_a=penalties_a,
                     penalties_b=penalties_b,
+                    date=row.get("date", "").strip() or None,
                 )
             )
     return results

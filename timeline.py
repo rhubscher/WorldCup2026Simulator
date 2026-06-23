@@ -143,22 +143,10 @@ def _snapshot_chart(
         ax.set_ylabel(ylabel, fontsize=8)
         ax.tick_params(axis="y", labelsize=7)
 
+        ax.grid(False)
         if label_side == "left":
             # Move axis label to the right so it doesn't overlap the country names on the left
             ax.yaxis.set_label_position("right")
-            ax.grid(axis="y", alpha=0.2)
-        else:
-            # Draw one horizontal reference line per team at their current position
-            # instead of auto-grid lines at 0, 1, 2 … 10, etc.
-            ax.grid(False)
-            for team in ALL_TEAMS:
-                ax.axhline(
-                    y=current_vals.get(team, 0),
-                    color="#cccccc",
-                    lw=0.4,
-                    alpha=0.55,
-                    zorder=0,
-                )
 
     fig.legend(
         handles=[
@@ -198,7 +186,9 @@ def _run_and_cache(
     for date in dates:
         filtered = [m for m in all_completed if m.date and m.date <= date]
         n_matches = len(filtered)
-        if not force and date in cache and meta.get(date) == n_matches:
+        cached_wins = cache.get(date, {}).get("win", {})
+        win_ok = any(v > 0 for v in cached_wins.values())
+        if not force and date in cache and meta.get(date) == n_matches and win_ok:
             print(f"  {date}: cached")
             continue
         label = "stale" if (not force and date in cache) else "simulating"
@@ -227,6 +217,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--no-cache", action="store_true", help="Ignore and overwrite existing cache"
+    )
+    parser.add_argument(
+        "--win-prob",
+        action="store_true",
+        help="Plot tournament win probability (%) instead of rank",
     )
     parser.add_argument(
         "--snapshot",
@@ -321,17 +316,23 @@ def main() -> None:
     print(f"Dates with results: {len(dates)}  |  cache: {cache_path}")
     _run_and_cache(all_completed, dates, ratings, n, cache, cache_path, args.no_cache)
 
-    # Build per-team series: dates and ranks (active dates only)
+    # Build per-team series: dates and y-values (active dates only)
     team_xs: dict[str, list[datetime]] = {t: [] for t in ALL_TEAMS}
-    team_ys: dict[str, list[int]] = {t: [] for t in ALL_TEAMS}
+    team_ys: dict[str, list[float]] = {t: [] for t in ALL_TEAMS}
 
     for date in dates:
         probs = cache[date]
-        ranks = _rank_teams(probs)
-        for team in ALL_TEAMS:
-            if _is_active(team, probs):
-                team_xs[team].append(datetime.fromisoformat(date))
-                team_ys[team].append(ranks[team])
+        if args.win_prob:
+            for team in ALL_TEAMS:
+                if _is_active(team, probs):
+                    team_xs[team].append(datetime.fromisoformat(date))
+                    team_ys[team].append(probs["win"].get(team, 0))
+        else:
+            ranks = _rank_teams(probs)
+            for team in ALL_TEAMS:
+                if _is_active(team, probs):
+                    team_xs[team].append(datetime.fromisoformat(date))
+                    team_ys[team].append(ranks[team])
 
     highlight = set(args.teams.split(",")) if args.teams else set()
 
@@ -361,24 +362,27 @@ def main() -> None:
             alpha=1.0 if is_highlighted else 0.55,
         )
 
-    ax.invert_yaxis()
-    ax.set_title(
-        f"FIFA World Cup 2026 — simulated ranking per match day\n"
-        f"({n:,} simulations per day)",
-        pad=10,
-    )
+    if args.win_prob:
+        ax.set_title(
+            f"FIFA World Cup 2026 — tournament win probability per match day\n"
+            f"({n:,} simulations per day)",
+            pad=10,
+        )
+        ax.set_ylabel("Win probability (%)")
+    else:
+        ax.invert_yaxis()
+        ax.set_title(
+            f"FIFA World Cup 2026 — simulated ranking per match day\n"
+            f"({n:,} simulations per day)",
+            pad=10,
+        )
+        ax.set_ylabel("Rank  (1 = most likely winner)")
+
     ax.set_xlabel("Date")
-    ax.set_ylabel("Rank  (1 = most likely winner)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
     ax.xaxis.set_major_locator(mdates.DayLocator())
     fig.autofmt_xdate()
     ax.grid(True, alpha=0.25)
-
-    legend_handles = [
-        plt.Line2D([0], [0], color=group_color[g], linewidth=2, label=f"Group {g}")
-        for g in GROUPS
-    ]
-    ax.legend(handles=legend_handles, fontsize=7, ncol=2, loc="upper left")
 
     plt.tight_layout()
 

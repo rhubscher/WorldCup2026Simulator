@@ -110,14 +110,17 @@ uv run surprises.py --top 5
 
 
 # ── timeline.py ──────────────────────────────────────────────────────────────
-# Line chart of each team's simulated ranking across match days
+# Line chart of each team's simulated ranking (or win probability) across match days
 # Requires update_scores.py to have been run (needs date column in scores.csv)
+# Results are cached per match day; stale entries are detected and re-simulated
+# automatically (no manual cache deletion needed after code updates).
 
 uv run timeline.py
 uv run timeline.py -n 5000
+uv run timeline.py --win-prob                     # y-axis = win probability (%) instead of rank
 uv run timeline.py --teams "France,Argentina,Germany"
 uv run timeline.py --save timeline.png
-uv run timeline.py --no-cache
+uv run timeline.py --no-cache                     # force re-simulation of all entries
 
 # --snapshot: two-panel slope chart (no timeline dates required)
 #   Left panel  — Glicko-2 rating: pre-tournament (left) → current (right)
@@ -126,18 +129,18 @@ uv run timeline.py --no-cache
 #   Falling line = worse than expected (red gradient, darker = bigger drop)
 #   Flat line = as expected (gray); team names on the outer edge of each panel
 #   Caching: baseline stored under "_baseline"; current stored under the latest
-#   match date; both are reused on subsequent runs unless stale or --no-cache.
-#   --no-cache recomputes both but preserves other cache entries (timeline dates).
+#   match date; --no-cache recomputes both but preserves other cache entries.
 
 uv run timeline.py --snapshot
 uv run timeline.py --snapshot --save snapshot.png
 uv run timeline.py --snapshot --no-cache          # force fresh simulation
 
 #   --snapshot              two-panel before/after slope chart; skips timeline
+#   --win-prob              y-axis = win probability (%) instead of rank (timeline only)
 #   -n N / --simulations N  simulations per match day / snapshot (default: 2000)
 #   --teams TEAMS           comma-separated list of teams to highlight (timeline only)
 #   --save FILE             save chart to PNG instead of displaying
 #   --cache FILE            cache file path (default: cache/timeline_N.json)
-#   --no-cache              recompute and overwrite cached snapshot entries
+#   --no-cache              force re-simulation; preserves unaffected cache entries
 #   --ratings FILE          Glicko-2 ratings CSV (default: data/ratings.csv)
 #   --scores FILE           completed scores CSV (default: data/scores.csv)

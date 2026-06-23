@@ -1,1 +1,0 @@
-for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do uv run main.py -n 10000 --output json | uv run visualize.py --top 48 --save output\%%i_chart.png

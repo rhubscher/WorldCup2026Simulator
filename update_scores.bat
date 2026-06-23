@@ -1,1 +1,0 @@
-uv run update_scores.py --days 2

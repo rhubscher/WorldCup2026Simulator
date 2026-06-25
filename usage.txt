@@ -119,6 +119,7 @@ uv run timeline.py
 uv run timeline.py -n 5000
 uv run timeline.py --win-prob                     # y-axis = win probability (%) instead of rank
 uv run timeline.py --teams "France,Argentina,Germany"
+uv run timeline.py --groups "A,B"                 # highlight all teams in groups A and B
 uv run timeline.py --save timeline.png
 uv run timeline.py --no-cache                     # force re-simulation of all entries
 
@@ -139,6 +140,7 @@ uv run timeline.py --snapshot --no-cache          # force fresh simulation
 #   --win-prob              y-axis = win probability (%) instead of rank (timeline only)
 #   -n N / --simulations N  simulations per match day / snapshot (default: 2000)
 #   --teams TEAMS           comma-separated list of teams to highlight (timeline only)
+#   --groups GROUPS         comma-separated list of groups to highlight, e.g. A,B (timeline only)
 #   --save FILE             save chart to PNG instead of displaying
 #   --cache FILE            cache file path (default: cache/timeline_N.json)
 #   --no-cache              force re-simulation; preserves unaffected cache entries

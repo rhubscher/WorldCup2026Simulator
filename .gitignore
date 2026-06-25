@@ -10,3 +10,8 @@ venv/
 .vscode/
 cache/
 output/
+docs/
+skills/
+*.bat
+r.json
+uv.lock

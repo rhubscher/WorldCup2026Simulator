@@ -12,7 +12,7 @@ import numpy as np
 import seaborn as sns
 
 from src.data import load_ratings, load_scores
-from src.match import simulate_group_match
+from src.match import score_distribution, simulate_group_match
 from src.ratings import get_probabilities, update_ratings
 
 _GOAL_CAP = 8
@@ -127,6 +127,11 @@ def print_today(ratings: dict) -> None:
             else:
                 p_win, p_draw, p_loss = get_probabilities(ratings[a], ratings[b])
                 print(f"    {a} {p_win*100:.1f}%  |  Draw {p_draw*100:.1f}%  |  {b} {p_loss*100:.1f}%")
+                dist = score_distribution(a, b, {(a, b): (p_win, p_draw, p_loss)})
+                ks = np.arange(dist.shape[0])
+                exp_a = float(np.dot(ks, dist.sum(axis=1)))
+                exp_b = float(np.dot(ks, dist.sum(axis=0)))
+                print(f"    Expected: {a} {exp_a:.1f}  —  {b} {exp_b:.1f}")
         print()
 
 
@@ -195,6 +200,11 @@ def main() -> None:
 
     cache = {(args.team_a, args.team_b): (p_win, p_draw, p_loss)}
 
+    dist = score_distribution(args.team_a, args.team_b, cache)
+    ks = np.arange(dist.shape[0])
+    exp_a = float(np.dot(ks, dist.sum(axis=1)))
+    exp_b = float(np.dot(ks, dist.sum(axis=0)))
+
     score_counts: dict[tuple[int, int], int] = defaultdict(int)
     for _ in range(args.simulations):
         ga, gb = simulate_group_match(args.team_a, args.team_b, cache)
@@ -209,6 +219,7 @@ def main() -> None:
     print(f"\n{a} vs {b}  ({n:,} simulated matches)\n")
     print(f"  Theoretical (Glicko-2):  {a} {p_win*100:.1f}%  |  Draw {p_draw*100:.1f}%  |  {b} {p_loss*100:.1f}%")
     print(f"  Simulated:               {a} {sim_win:.1f}%  |  Draw {sim_draw:.1f}%  |  {b} {sim_loss:.1f}%")
+    print(f"  Expected score:          {a} {exp_a:.1f}  —  {b} {exp_b:.1f}")
     print()
 
     top6 = sorted(score_counts.items(), key=lambda x: x[1], reverse=True)[:6]

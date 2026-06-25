@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import math
 import random
 
 import numpy as np
 
 from .data import MatchResult
 
-_BASE_LAMBDA = 1.3
-_K = 1.0
-_MAX_RESAMPLE = 50
+# Fitted via MLE on 54 completed 2026 WC group matches (calibrate.py).
+# Previous values: _BASE_LAMBDA = 1.3, _K = 1.0 — underestimated high-scoring games.
+_BASE_LAMBDA = 1.7589
+_K = 1.9457
 
 _ProbCache = dict[tuple[str, str], tuple[float, float, float]]
 
@@ -27,24 +29,8 @@ def simulate_group_match(
 ) -> tuple[int, int]:
     """Simulate a group-phase match; returns (goals_a, goals_b)."""
     p_win, p_draw, p_loss = probs[(team_a, team_b)]
-    outcome = np.random.choice(["win", "draw", "loss"], p=[p_win, p_draw, p_loss])
     la, lb = _lambdas(p_win, p_draw)
-
-    for _ in range(_MAX_RESAMPLE):
-        ga = int(np.random.poisson(la))
-        gb = int(np.random.poisson(lb))
-        if outcome == "win" and ga > gb:
-            return ga, gb
-        if outcome == "draw" and ga == gb:
-            return ga, gb
-        if outcome == "loss" and ga < gb:
-            return ga, gb
-
-    if outcome == "win":
-        return 1, 0
-    if outcome == "draw":
-        return 1, 1
-    return 0, 1
+    return int(np.random.poisson(la)), int(np.random.poisson(lb))
 
 
 def simulate_knockout_match(
@@ -99,25 +85,10 @@ def simulate_knockout_match_result(
 ) -> MatchResult:
     """Simulate a knockout match with full scoreline; returns a MatchResult."""
     p_win, p_draw, p_loss = probs[(team_a, team_b)]
-    outcome = np.random.choice(["win", "draw", "loss"], p=[p_win, p_draw, p_loss])
     la, lb = _lambdas(p_win, p_draw)
 
-    for _ in range(_MAX_RESAMPLE):
-        ga = int(np.random.poisson(la))
-        gb = int(np.random.poisson(lb))
-        if outcome == "win" and ga > gb:
-            break
-        if outcome == "draw" and ga == gb:
-            break
-        if outcome == "loss" and ga < gb:
-            break
-    else:
-        if outcome == "win":
-            ga, gb = 1, 0
-        elif outcome == "draw":
-            ga, gb = 1, 1
-        else:
-            ga, gb = 0, 1
+    ga = int(np.random.poisson(la))
+    gb = int(np.random.poisson(lb))
 
     if ga != gb:
         return MatchResult(phase, "", team_a, team_b, ga, gb, False, None, None)
@@ -132,3 +103,24 @@ def simulate_knockout_match_result(
     # Penalty shootout
     pa, pb = _simulate_penalties()
     return MatchResult(phase, "", team_a, team_b, ga + pa, gb + pb, True, pa, pb)
+
+
+def score_distribution(
+    team_a: str,
+    team_b: str,
+    probs: _ProbCache,
+    max_goals: int = 8,
+) -> np.ndarray:
+    """Return a (max_goals+1)×(max_goals+1) probability matrix.
+
+    matrix[i][j] = P(goals_a == i) * P(goals_b == j)
+    where goals_a ~ Poisson(la), goals_b ~ Poisson(lb), independent.
+    Rows index team_a goals; columns index team_b goals.
+    """
+    p_win, p_draw, p_loss = probs[(team_a, team_b)]
+    la, lb = _lambdas(p_win, p_draw)
+    size = max_goals + 1
+    ks = np.arange(size)
+    log_pmf_a = ks * math.log(la) - la - np.array([math.lgamma(k + 1) for k in ks])
+    log_pmf_b = ks * math.log(lb) - lb - np.array([math.lgamma(k + 1) for k in ks])
+    return np.outer(np.exp(log_pmf_a), np.exp(log_pmf_b))

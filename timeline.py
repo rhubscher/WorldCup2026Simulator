@@ -216,6 +216,9 @@ def main() -> None:
         "--teams", metavar="TEAMS", help="Comma-separated list of teams to highlight"
     )
     parser.add_argument(
+        "--groups", metavar="GROUPS", help="Comma-separated list of groups to highlight (e.g. A,B)"
+    )
+    parser.add_argument(
         "--no-cache", action="store_true", help="Ignore and overwrite existing cache"
     )
     parser.add_argument(
@@ -334,7 +337,9 @@ def main() -> None:
                     team_xs[team].append(datetime.fromisoformat(date))
                     team_ys[team].append(ranks[team])
 
-    highlight = set(args.teams.split(",")) if args.teams else set()
+    highlight_teams  = set(args.teams.split(","))  if args.teams  else set()
+    highlight_groups = set(args.groups.split(",")) if args.groups else set()
+    has_filter = bool(highlight_teams or highlight_groups)
 
     # Assign a color per group using tab20
     cmap = plt.colormaps["tab20"]
@@ -347,9 +352,9 @@ def main() -> None:
             continue
         group = TEAM_TO_GROUP[team]
         color = group_color[group]
-        is_highlighted = not highlight or team in highlight
+        is_highlighted = not has_filter or team in highlight_teams or group in highlight_groups
         alpha = 1.0 if is_highlighted else 0.15
-        lw = 1.8 if team in highlight else 1.0
+        lw = 1.8 if team in highlight_teams else 1.0
         ax.plot(team_xs[team], team_ys[team], color=color, alpha=alpha, linewidth=lw)
         ax.annotate(
             team,
@@ -382,7 +387,7 @@ def main() -> None:
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
     ax.xaxis.set_major_locator(mdates.DayLocator())
     fig.autofmt_xdate()
-    ax.grid(True, alpha=0.25)
+    ax.grid(axis="x", alpha=0.25)
 
     plt.tight_layout()
 

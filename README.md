@@ -18,9 +18,9 @@ uv sync
 
 | Script | What it does |
 |---|---|
-| `main.py` | Run N simulated tournaments; print each team's round-reach probabilities |
+| `main.py` | Run N simulated tournaments; print each team's round-reach probabilities (result cached) |
 | `visualize.py` | Heatmap of round-reach probabilities (reads JSON from `main.py`) |
-| `matchup.py` | Head-to-head scoreline distribution for any two teams, or all of today's fixtures |
+| `matchup.py` | Head-to-head scoreline heatmap and expected score for two teams, or all of today's fixtures |
 | `next_opponents.py` | Probable next-round opponents with conditional probabilities |
 | `pairings.py` | Current knockout bracket derived from completed results (no simulation) |
 | `update_scores.py` | Pull latest results from ESPN and update `data/scores.csv` |
@@ -31,11 +31,11 @@ uv sync
 ### Key examples
 
 ```powershell
-# Run 10 000 simulations (default)
+# Run 1 000 simulations (default; result cached in cache/main.json)
 uv run main.py
 
 # Pipe into heatmap
-uv run main.py -n 1000 --output json | uv run visualize.py --save chart.png
+uv run main.py --output json | uv run visualize.py --save chart.png
 
 # Head-to-head
 uv run matchup.py France Argentina

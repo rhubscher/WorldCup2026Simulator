@@ -37,14 +37,14 @@ uv run visualize.py results.json                  # from a saved JSON file
 # Head-to-head W/D/L odds and scoreline heatmap for two teams
 
 uv run matchup.py Germany France
-uv run matchup.py Germany France -n 50000
+uv run matchup.py Germany France -n 5000
 uv run matchup.py Spain Argentina --save matchup.png
-uv run matchup.py "Cote d'Ivoire" Ecuador -n 5000
+uv run matchup.py "Cote d'Ivoire" Ecuador
 uv run matchup.py USA Mexico --scores data/scores.csv --ratings data/ratings.csv
 uv run matchup.py --today                         # today's schedule with odds and expected scores
 
 #   team_a team_b           two team names (required unless --today)
-#   -n N / --simulations N  matches to simulate (default: 10,000)
+#   -n N / --simulations N  matches to simulate (default: 1,000)
 #   --today                 today's schedule: W/D/L odds and expected score per match
 #   --save FILE             save chart to file instead of opening a window
 #   --ratings FILE          Glicko-2 ratings CSV (default: data/ratings.csv)

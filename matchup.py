@@ -150,7 +150,7 @@ def main() -> None:
         "-n",
         "--simulations",
         type=int,
-        default=10_000,
+        default=1_000,
         metavar="N",
         help="Number of matches to simulate (default: 10,000)",
     )

@@ -5,14 +5,17 @@
 # ── main.py ──────────────────────────────────────────────────────────────────
 # Monte Carlo tournament simulator
 
-uv run main.py                                    # 10,000 simulations, text output
-uv run main.py -n 500                             # quick test
-uv run main.py -n 10000 --output json             # JSON output for piping
+uv run main.py                                    # 1,000 simulations, text output (cached)
+uv run main.py -n 5000                            # higher precision run
+uv run main.py --output json                      # JSON output for piping
 uv run main.py --trace Switzerland                # one-run match diary for a team
+uv run main.py --no-cache                         # ignore cache and recompute
 
-#   -n N / --simulations N   number of simulations (default: 10000)
+#   -n N / --simulations N   number of simulations (default: 1000)
 #   --output text|json        output format (default: text)
 #   --trace TEAM              one-run diary for TEAM; ignores -n and --output
+#   --no-cache                ignore and overwrite existing cached result
+#   --cache FILE              cache file path (default: cache/main.json)
 #   --ratings FILE            Glicko-2 ratings CSV (default: data/ratings.csv)
 #   --scores FILE             completed scores CSV (default: data/scores.csv)
 
@@ -20,9 +23,9 @@ uv run main.py --trace Switzerland                # one-run match diary for a te
 # ── visualize.py ─────────────────────────────────────────────────────────────
 # Heatmap of round-reach probabilities; reads JSON from main.py
 
-uv run main.py -n 1000 --output json | uv run visualize.py
-uv run main.py -n 1000 --output json | uv run visualize.py --save chart.png
-uv run main.py -n 1000 --output json | uv run visualize.py --top 20
+uv run main.py --output json | uv run visualize.py
+uv run main.py --output json | uv run visualize.py --save chart.png
+uv run main.py --output json | uv run visualize.py --top 20
 uv run visualize.py results.json                  # from a saved JSON file
 
 #   [FILE]       JSON file from main.py --output json (default: stdin)
@@ -38,11 +41,11 @@ uv run matchup.py Germany France -n 50000
 uv run matchup.py Spain Argentina --save matchup.png
 uv run matchup.py "Cote d'Ivoire" Ecuador -n 5000
 uv run matchup.py USA Mexico --scores data/scores.csv --ratings data/ratings.csv
-uv run matchup.py --today                         # today's schedule with Glicko-2 odds
+uv run matchup.py --today                         # today's schedule with odds and expected scores
 
 #   team_a team_b           two team names (required unless --today)
 #   -n N / --simulations N  matches to simulate (default: 10,000)
-#   --today                 show today's schedule with win/draw/loss odds; no simulation
+#   --today                 today's schedule: W/D/L odds and expected score per match
 #   --save FILE             save chart to file instead of opening a window
 #   --ratings FILE          Glicko-2 ratings CSV (default: data/ratings.csv)
 #   --scores FILE           completed scores CSV (default: data/scores.csv)
@@ -138,7 +141,7 @@ uv run timeline.py --snapshot --no-cache          # force fresh simulation
 
 #   --snapshot              two-panel before/after slope chart; skips timeline
 #   --win-prob              y-axis = win probability (%) instead of rank (timeline only)
-#   -n N / --simulations N  simulations per match day / snapshot (default: 2000)
+#   -n N / --simulations N  simulations per match day / snapshot (default: 1000)
 #   --teams TEAMS           comma-separated list of teams to highlight (timeline only)
 #   --groups GROUPS         comma-separated list of groups to highlight, e.g. A,B (timeline only)
 #   --save FILE             save chart to PNG instead of displaying

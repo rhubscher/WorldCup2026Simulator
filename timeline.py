@@ -207,7 +207,7 @@ def main() -> None:
     )
     parser.add_argument("--scores", default="data/scores.csv")
     parser.add_argument("--ratings", default="data/ratings.csv")
-    parser.add_argument("-n", "--simulations", type=int, default=2000, metavar="N")
+    parser.add_argument("-n", "--simulations", type=int, default=1000, metavar="N")
     parser.add_argument("--cache", metavar="FILE", help="Cache file path")
     parser.add_argument(
         "--save", metavar="FILE", help="Save chart to PNG instead of displaying"

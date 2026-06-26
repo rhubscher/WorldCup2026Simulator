@@ -358,6 +358,40 @@ def trace_team(
     return [m for m in all_matches if m.team_a == team or m.team_b == team]
 
 
+def serialize_results(results: SimResults) -> dict:
+    """Convert SimResults to a JSON-serializable dict."""
+    return {
+        "n": results.n,
+        "win_counts": dict(results.win_counts),
+        "round_counts": {k: dict(v) for k, v in results.round_counts.items()},
+        "group_pos_counts": dict(results.group_pos_counts),
+        "goals_for": {k: dict(v) for k, v in results.goals_for.items()},
+        "goals_against": {k: dict(v) for k, v in results.goals_against.items()},
+        "phase_goals": dict(results.phase_goals),
+    }
+
+
+def deserialize_results(data: dict) -> SimResults:
+    """Restore a SimResults from a serialized dict."""
+    r = SimResults(n=data["n"])
+    for k, v in data["win_counts"].items():
+        r.win_counts[k] = v
+    for team, rounds in data["round_counts"].items():
+        for rnd, c in rounds.items():
+            r.round_counts[team][rnd] = c
+    for team, positions in data["group_pos_counts"].items():
+        r.group_pos_counts[team] = positions
+    for team, phases in data["goals_for"].items():
+        for phase, count in phases.items():
+            r.goals_for[team][phase] = count
+    for team, phases in data["goals_against"].items():
+        for phase, count in phases.items():
+            r.goals_against[team][phase] = count
+    for phase, count in data["phase_goals"].items():
+        r.phase_goals[phase] = count
+    return r
+
+
 def run_simulations(
     ratings: dict[str, TeamRating],
     completed: list[MatchResult],

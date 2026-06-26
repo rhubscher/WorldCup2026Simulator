@@ -1,11 +1,34 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from pathlib import Path
 
 from .data import load_ratings, load_scores
 from .output import format_json, format_text, format_trace
-from .simulation import run_simulations, trace_team
+from .simulation import (
+    deserialize_results,
+    run_simulations,
+    serialize_results,
+    trace_team,
+)
+
+_DEFAULT_CACHE = Path("cache/main.json")
+
+
+def _load_cache(path: Path) -> dict:
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_cache(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def main() -> None:
@@ -28,9 +51,9 @@ def main() -> None:
         "-n",
         "--simulations",
         type=int,
-        default=10_000,
+        default=1_000,
         metavar="N",
-        help="Number of Monte Carlo simulation runs (default: 10000)",
+        help="Number of Monte Carlo simulation runs (default: 1000)",
     )
     parser.add_argument(
         "--output",
@@ -42,6 +65,17 @@ def main() -> None:
         "--trace",
         metavar="TEAM",
         help="Print one-run match diary for TEAM (ignores -n and --output)",
+    )
+    parser.add_argument(
+        "--cache",
+        metavar="FILE",
+        default=str(_DEFAULT_CACHE),
+        help=f"Cache file path (default: {_DEFAULT_CACHE})",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Ignore and overwrite any existing cached simulation result",
     )
     args = parser.parse_args()
 
@@ -57,8 +91,26 @@ def main() -> None:
         print(format_trace(args.trace, matches))
         return
 
-    print(f"Running {args.simulations:,} simulations…", file=sys.stderr)
-    results = run_simulations(ratings, completed, args.simulations)
+    cache_path = Path(args.cache)
+    cache = {} if args.no_cache else _load_cache(cache_path)
+    meta = cache.get("_meta", {})
+    n_completed = len(completed)
+
+    if (
+        not args.no_cache
+        and "results" in cache
+        and meta.get("n_matches") == n_completed
+        and meta.get("n") == args.simulations
+    ):
+        print("Using cached simulation results.", file=sys.stderr)
+        results = deserialize_results(cache["results"])
+    else:
+        print(f"Running {args.simulations:,} simulations…", file=sys.stderr)
+        results = run_simulations(ratings, completed, args.simulations)
+        _save_cache(cache_path, {
+            "_meta": {"n_matches": n_completed, "n": args.simulations},
+            "results": serialize_results(results),
+        })
 
     if args.output == "json":
         print(format_json(results))

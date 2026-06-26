@@ -19,20 +19,20 @@ group,C,Morocco,Scotland,1,0,,,,2026-06-19
 group,C,Haiti,Scotland,0,1,,,,2026-06-13
 group,D,USA,Paraguay,4,1,,,,2026-06-12
 group,D,USA,Australia,2,0,,,,2026-06-19
-group,D,USA,Turkey,,,,,,
-group,D,Paraguay,Australia,,,,,,
+group,D,USA,Turkey,2,3,,,,2026-06-25
+group,D,Paraguay,Australia,0,0,,,,2026-06-25
 group,D,Paraguay,Turkey,1,0,,,,2026-06-19
 group,D,Australia,Turkey,2,0,,,,2026-06-14
 group,E,Germany,Curacao,7,1,,,,2026-06-14
 group,E,Germany,Cote d'Ivoire,2,1,,,,2026-06-20
-group,E,Germany,Ecuador,,,,,,
-group,E,Curacao,Cote d'Ivoire,,,,,,
+group,E,Germany,Ecuador,1,2,,,,2026-06-25
+group,E,Curacao,Cote d'Ivoire,0,2,,,,2026-06-25
 group,E,Curacao,Ecuador,0,0,,,,2026-06-20
 group,E,Cote d'Ivoire,Ecuador,1,0,,,,2026-06-14
 group,F,Netherlands,Japan,2,2,,,,2026-06-14
 group,F,Netherlands,Sweden,5,1,,,,2026-06-20
-group,F,Netherlands,Tunisia,,,,,,
-group,F,Japan,Sweden,,,,,,
+group,F,Netherlands,Tunisia,3,1,,,,2026-06-25
+group,F,Japan,Sweden,1,1,,,,2026-06-25
 group,F,Japan,Tunisia,4,0,,,,2026-06-21
 group,F,Sweden,Tunisia,5,1,,,,2026-06-14
 group,G,Belgium,Egypt,1,1,,,,2026-06-15

@@ -9,8 +9,8 @@ from .data import MatchResult
 
 # Fitted via MLE on 54 completed 2026 WC group matches (calibrate.py).
 # Previous values: _BASE_LAMBDA = 1.3, _K = 1.0 — underestimated high-scoring games.
-_BASE_LAMBDA = 1.7589
-_K = 1.9457
+_BASE_LAMBDA = 1.7348
+_K = 1.8802
 
 _ProbCache = dict[tuple[str, str], tuple[float, float, float]]
 

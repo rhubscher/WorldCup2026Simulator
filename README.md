@@ -4,7 +4,7 @@ A Python toolkit that simulates the 2026 FIFA World Cup and estimates each team'
 
 Match outcomes are modelled with Glicko-2 ratings (win/draw/loss probabilities) and Poisson-distributed scorelines. The simulator covers the full tournament: 12 group stages, a 48-team bracket with third-place qualification, through to the final. Completed match results are fed in from `data/scores.csv` and ratings are updated before each simulation run.
 
-These Python scripts almost completely vibcoded with Claude Code as a timely experiement to see how well these AI tools do. For simple, small programs like this, it did surprisingly well.
+These Python scripts are almost completely vibe coded with Claude Code as a timely experiement to see how well these AI tools do. For simple, small programs like this, it did surprisingly well.
 
 ## Setup
 

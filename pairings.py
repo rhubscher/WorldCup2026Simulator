@@ -10,13 +10,14 @@ from src.bracket import (
     _SF_PAIRS,
     _assign_third_place,
 )
-from src.data import GROUPS, load_scores
+from src.data import GROUPS, load_ratings, load_scores
+from src.ratings import get_probabilities, update_ratings
 from src.tournament import _h2h_gd_among, _h2h_gf_among, _h2h_points_among
 
 R32_NUMS = list(range(73, 89))
 R16_NUMS = list(range(89, 97))
-QF_NUMS  = list(range(97, 101))
-SF_NUMS  = [101, 102]
+QF_NUMS = list(range(97, 101))
+SF_NUMS = [101, 102]
 FINAL_NUM = 103
 
 
@@ -48,8 +49,8 @@ def _rank_cluster(cluster: list[str], st: dict, results) -> list[str | None]:
     Returns None for positions unresolvable without fair play / FIFA ranking.
     """
     h_pts = _h2h_points_among(cluster, results)
-    h_gd  = _h2h_gd_among(cluster, results)
-    h_gf  = _h2h_gf_among(cluster, results)
+    h_gd = _h2h_gd_among(cluster, results)
+    h_gf = _h2h_gf_among(cluster, results)
 
     def hk(t: str) -> tuple:
         return (h_pts[t], h_gd[t], h_gf[t], st[t][1], st[t][2])
@@ -105,8 +106,16 @@ def _ko_winner(results, ta, tb):
     return None
 
 
-def main(scores_path: str = "data/scores.csv"):
+def _prob_str(ta: str, tb: str, ratings: dict) -> str:
+    if ta not in ratings or tb not in ratings:
+        return ""
+    p_win, p_draw, p_loss = get_probabilities(ratings[ta], ratings[tb])
+    return f" :: {p_win:.0%} / {p_draw:.0%} / {p_loss:.0%}"
+
+
+def main(scores_path: str = "data/scores.csv", ratings_path: str = "data/ratings.csv"):
     scores = load_scores(scores_path)
+    ratings = update_ratings(load_ratings(ratings_path), scores)
 
     grp = {g: [] for g in GROUPS}
     ko: dict[str, list] = {ph: [] for ph in ("r32", "r16", "qf", "sf", "final")}
@@ -128,8 +137,7 @@ def main(scores_path: str = "data/scores.csv"):
     # ── Group standings ───────────────────────────────────────────────────────
     done = {g: len(grp[g]) == 6 for g in GROUPS}
     ranking: dict[str, list[str | None] | None] = {
-        g: (_rank_deterministic(grp[g], GROUPS[g]) if done[g] else None)
-        for g in GROUPS
+        g: (_rank_deterministic(grp[g], GROUPS[g]) if done[g] else None) for g in GROUPS
     }
 
     def team_at(g: str, p: int) -> str | None:
@@ -144,11 +152,10 @@ def main(scores_path: str = "data/scores.csv"):
     if all(done.values()):
         thirds = {g: team_at(g, 2) for g in GROUPS}
         if all(t is not None for t in thirds.values()):
-            third_st = {
-                g: _stats(grp[g], GROUPS[g])[thirds[g]]
-                for g in GROUPS
-            }
-            ranked_thirds = sorted(GROUPS.keys(), key=lambda g: third_st[g], reverse=True)
+            third_st = {g: _stats(grp[g], GROUPS[g])[thirds[g]] for g in GROUPS}
+            ranked_thirds = sorted(
+                GROUPS.keys(), key=lambda g: third_st[g], reverse=True
+            )
 
             # Confirm only if the 8th/9th boundary is unambiguous
             if third_st[ranked_thirds[7]] != third_st[ranked_thirds[8]]:
@@ -179,8 +186,7 @@ def main(scores_path: str = "data/scores.csv"):
 
     # ── Round of 16 ──────────────────────────────────────────────────────────
     r32_w = [
-        (_ko_winner(ko["r32"], ta, tb) if (ta and tb) else None)
-        for ta, tb in r32_pairs
+        (_ko_winner(ko["r32"], ta, tb) if (ta and tb) else None) for ta, tb in r32_pairs
     ]
 
     played_r16 = {frozenset([r.team_a, r.team_b]) for r in ko["r16"]}
@@ -193,8 +199,7 @@ def main(scores_path: str = "data/scores.csv"):
 
     # ── Quarterfinals ────────────────────────────────────────────────────────
     r16_w = [
-        (_ko_winner(ko["r16"], ta, tb) if (ta and tb) else None)
-        for ta, tb in r16_pairs
+        (_ko_winner(ko["r16"], ta, tb) if (ta and tb) else None) for ta, tb in r16_pairs
     ]
 
     played_qf = {frozenset([r.team_a, r.team_b]) for r in ko["qf"]}
@@ -207,8 +212,7 @@ def main(scores_path: str = "data/scores.csv"):
 
     # ── Semifinals ───────────────────────────────────────────────────────────
     qf_w = [
-        (_ko_winner(ko["qf"], ta, tb) if (ta and tb) else None)
-        for ta, tb in qf_pairs
+        (_ko_winner(ko["qf"], ta, tb) if (ta and tb) else None) for ta, tb in qf_pairs
     ]
 
     played_sf = {frozenset([r.team_a, r.team_b]) for r in ko["sf"]}
@@ -221,8 +225,7 @@ def main(scores_path: str = "data/scores.csv"):
 
     # ── Final ────────────────────────────────────────────────────────────────
     sf_w = [
-        (_ko_winner(ko["sf"], ta, tb) if (ta and tb) else None)
-        for ta, tb in sf_pairs
+        (_ko_winner(ko["sf"], ta, tb) if (ta and tb) else None) for ta, tb in sf_pairs
     ]
     played_final = {frozenset([r.team_a, r.team_b]) for r in ko["final"]}
     if len(sf_w) == 2 and all(sf_w):
@@ -233,10 +236,10 @@ def main(scores_path: str = "data/scores.csv"):
     # ── Output ───────────────────────────────────────────────────────────────
     phase_labels = {
         "group": "Group Stage",
-        "r32":   "Round of 32",
-        "r16":   "Round of 16",
-        "qf":    "Quarterfinals",
-        "sf":    "Semifinals",
+        "r32": "Round of 32",
+        "r16": "Round of 16",
+        "qf": "Quarterfinals",
+        "sf": "Semifinals",
         "final": "Final",
     }
 
@@ -253,10 +256,10 @@ def main(scores_path: str = "data/scores.csv"):
             for glabel in sorted(by_group):
                 print(f"  {glabel}:")
                 for ta, tb in by_group[glabel]:
-                    print(f"    {ta} vs {tb}")
+                    print(f"    {ta} vs {tb}{_prob_str(ta, tb, ratings)}")
         else:
             for label, ta, tb in games:
-                print(f"  {label}: {ta} vs {tb}")
+                print(f"  {label}: {ta} vs {tb}{_prob_str(ta, tb, ratings)}")
         total += len(games)
 
     print(f"\nTotal: {total} confirmed unplayed pairings")
@@ -264,6 +267,7 @@ def main(scores_path: str = "data/scores.csv"):
 
 if __name__ == "__main__":
     import argparse
+
     p = argparse.ArgumentParser()
     p.add_argument("--scores", default="data/scores.csv")
     args = p.parse_args()
